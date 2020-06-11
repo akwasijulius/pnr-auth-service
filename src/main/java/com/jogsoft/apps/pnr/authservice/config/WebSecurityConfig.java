@@ -7,10 +7,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.ExampleMatcher;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
@@ -26,49 +28,38 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Autowired
 	UserDetailsServiceImpl userDetailsService;
 
+	@Autowired
+	JwtAuthenticationFilter jwtAuthenticationFilter;
+
 	@Bean
 	public PasswordEncoder passwordEncoder() {
 		//return new BCryptPasswordEncoder();
 		return NoOpPasswordEncoder.getInstance();
 	}
 
-	 /*@Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter();
-    }*/
-
+	@Override
+	@Bean
+	public AuthenticationManager authenticationManagerBean() throws Exception {
+		return super.authenticationManagerBean();
+	}
 
 	@Override
-	protected void configure(HttpSecurity http) throws Exception {
-		http.authorizeRequests()
-				.antMatchers("/admin").hasRole("ADMIN")
-				.antMatchers("/user").hasAnyRole("ADMIN", "USER")
-				.antMatchers("/", "/h2-console/**").permitAll()
-				.and()
-				.formLogin();
-
-		http.csrf().disable();
-		http.headers().frameOptions().disable();
-		//http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+	protected void configure(HttpSecurity httpSecurity) throws Exception {
+		httpSecurity.csrf().disable()
+				.authorizeRequests().antMatchers("/authenticate").permitAll().
+				anyRequest().authenticated().and().
+				exceptionHandling().and().sessionManagement()
+				.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+		httpSecurity.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 	}
 
 
-	@Override
-	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		//use the AuthenticationManagerBuilder to configure AuthenticationManager to use our authentication type
-		//inMemoryAuthentication and the password encoder
-		/*auth.inMemoryAuthentication()
-				.withUser("user")
-				.password(passwordEncoder().encode("password"))
-				.roles("USER");*/
-
-		// using jdbc authentication
-		/*auth.jdbcAuthentication()
-				.dataSource(dataSource);*/
-
-		// using jpa authentication with userDetailsService
-		auth.userDetailsService(userDetailsService)
-			.passwordEncoder(passwordEncoder());
+	@Autowired
+	protected void configureGlobal(AuthenticationManagerBuilder auth) throws Exception {
+		//use the AuthenticationManagerBuilder to configure AuthenticationManager to use an authentication type
+		// such as inMemoryAuthentication, or jdbcAuthentication, or if you are using JPA's repositories then
+		// configure it to use the userDetailsService.
+		auth.userDetailsService(userDetailsService);
 	}
 
 }
